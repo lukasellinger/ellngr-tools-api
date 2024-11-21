@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+# Update and install necessary packages
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y bash build-essential git
+
+# Create a non-root user and switch to that user
+RUN useradd -m run
+USER run
+
+# Set the working directory
+WORKDIR /home/run
+
+ENV PATH="/home/run/.local/bin:${PATH}"
+
+# Copy the requirements and install them
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
+
+# Copy the rest of the application code
+COPY --chown=run:run . .
+
+# Set default environment variable for the port
+ENV PORT=8081
+
+# We need this to override with environment variables
+CMD ["bash", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
