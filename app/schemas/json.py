@@ -11,11 +11,13 @@ class FixedJsonOpenAiResponse(BaseModel):
 class FixedJsonRequest(BaseModel):
     """Request schema for fixing json."""
     malformed_json: str = Field(..., description="Malformed json that need to be fixed.")
+    language: str | None = 'English'
 
     class Config:
         json_schema_extra = {
             "example": {
-                "malformed_json": "{\"asdf\": '1'}",
+                "malformed_json": "{\"asdf\", '1'",
+                "language": "German"
             }
         }
 
