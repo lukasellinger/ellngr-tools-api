@@ -51,6 +51,3 @@ class OpenAiFetcher:
             text = chunk.choices[0].delta.content
             if text:
                 yield text
-
-
-openai_fetcher = OpenAiFetcher()

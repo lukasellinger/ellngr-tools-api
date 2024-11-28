@@ -1,11 +1,12 @@
 import json5
 from fastapi import APIRouter, HTTPException
 
-from app.core.ai.openai_fetcher import openai_fetcher
+from app.api.singeltons import openai_fetcher
 from app.core.ai.prompts import get_fix_json_prompt
 from app.schemas.json import FixedJsonOpenAiResponse, FixedJsonResponse, FixedJsonRequest
 
 router = APIRouter()
+
 
 @router.post("/fix", response_model=FixedJsonResponse)
 async def fix_json(malformed_json_request: FixedJsonRequest):

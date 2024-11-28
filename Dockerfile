@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir --upgrade -r requirements.txt
 # Copy the rest of the application code
 COPY --chown=run:run . .
 
+RUN python3 setup.py
+
 # Set default environment variable for the port
 ENV PORT=8081
 

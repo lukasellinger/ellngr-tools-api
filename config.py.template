@@ -1,1 +1,7 @@
+"""General configuration for the project."""
+
+from pathlib import Path
+
+PROJECT_DIR = Path(__file__).parent
+
 OPEN_AI_TOKEN = ''
