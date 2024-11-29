@@ -60,10 +60,10 @@ class EvidenceSelectionModel(nn.Module):
         """Mean pooling of the embeddings of the sentences."""
         token_embeddings = model_output.unsqueeze(1)
 
-        masks_size = sentence_mask.count_nonzero(dim=-1)
+        masks_size = sentence_mask.sum(dim=-1)  # Sum of non-zero elements in sentence_mask
         masks = sentence_mask.unsqueeze(-1)
 
-        masks_size = torch.clamp(masks_size, min=1e-9)  # do not divide by 0
+        masks_size = torch.clamp(masks_size, min=1e-9)  # Do not divide by 0
         sentence_embeddings = (masks * token_embeddings).sum(dim=2) / masks_size.unsqueeze(-1)
         return sentence_embeddings
 

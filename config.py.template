@@ -1,7 +1,11 @@
 """General configuration for the project."""
 
 from pathlib import Path
+import onnxruntime as ort
 
 PROJECT_DIR = Path(__file__).parent
+
+options = ort.SessionOptions()
+options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
 OPEN_AI_TOKEN = ''

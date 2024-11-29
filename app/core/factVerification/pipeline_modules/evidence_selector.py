@@ -5,10 +5,11 @@ from typing import Tuple
 import numpy as np
 import torch
 from torch.nn.functional import cosine_similarity
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoTokenizer
+import onnxruntime as ort
 
 from app.core.factVerification.general_utils.utils import rank_docs
-from app.core.factVerification.models.evidence_selection_model import EvidenceSelectionModel
+from config import PROJECT_DIR, options
 
 
 class EvidenceSelector(ABC):
@@ -71,6 +72,7 @@ class ModelEvidenceSelector(EvidenceSelector):
     """
 
     MODEL_NAME = 'lukasellinger/evidence-selection-model'
+    MODEL_ONNX = 'evidence_selection_model.onnx'
 
     def __init__(self,
                  model_name: str = '', min_similarity: float = 0.5, evidence_selection: str = 'top'):
@@ -82,7 +84,6 @@ class ModelEvidenceSelector(EvidenceSelector):
         self.model_name = model_name or self.MODEL_NAME
         self.min_similarity = min_similarity
         self.evidence_selection = evidence_selection
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.model = None
 
@@ -97,10 +98,7 @@ class ModelEvidenceSelector(EvidenceSelector):
     def load_model(self):
         """Load the machine learning model for evidence selection, if not already loaded."""
         if self.model is None:
-            model_raw = AutoModel.from_pretrained(self.model_name, trust_remote_code=True,
-                                                  add_pooling_layer=False, safe_serialization=True)
-            self.model = EvidenceSelectionModel(model_raw).to(self.device)
-            self.model.eval()
+            self.model = ort.InferenceSession(f"{PROJECT_DIR}/onnx_models/{self.MODEL_ONNX}", options)
 
     def unload_model(self):
         """Unload the machine learning model and free up GPU resources."""
@@ -185,10 +183,14 @@ class ModelEvidenceSelector(EvidenceSelector):
                               top_k: int) -> list[list[dict]]:
         top_sentences_batch = []
         for claim, evidences in zip(batch, ranked_evidence_batch):
-            statement_model_input = self.tokenizer(claim['text'], return_tensors='pt').to(
-                self.device)
+            statement_model_input = self.tokenizer(claim['text'], return_tensors='pt')
+            onnx_inputs = {
+                'input_ids': statement_model_input['input_ids'].numpy(),
+                'attention_mask': statement_model_input['attention_mask'].numpy(),
+                'sentence_mask': statement_model_input['attention_mask'].unsqueeze(dim=1).numpy()  # If sentence_mask is not required, pass None
+            }
             with torch.no_grad():
-                statement_embeddings = self.model(**statement_model_input)
+                statement_embeddings = torch.tensor(self.model.run(None, onnx_inputs)[0])
             sentence_similarities = []
 
             for entry in evidences:
@@ -217,12 +219,12 @@ class ModelEvidenceSelector(EvidenceSelector):
         if sentences:
             encoded_sequence, sentence_mask = self._encode_sentences(sentences)
             sentences_model_input = {
-                'input_ids': torch.tensor(encoded_sequence).unsqueeze(0).to(self.device),
-                'attention_mask': torch.ones(len(encoded_sequence)).unsqueeze(0).to(self.device),
-                'sentence_mask': torch.tensor(sentence_mask).unsqueeze(0).to(self.device)
+                'input_ids': torch.tensor(encoded_sequence).unsqueeze(0).numpy(),
+                'attention_mask': np.expand_dims(np.ones(len(encoded_sequence), dtype=np.int64), axis=0),  # Ensure int64
+                'sentence_mask': torch.tensor(sentence_mask).unsqueeze(0).numpy(),
             }
             with torch.no_grad():
-                sentence_embeddings = self.model(**sentences_model_input).squeeze(0)
+                sentence_embeddings = torch.tensor(self.model.run(None, sentences_model_input)[0].squeeze(0))
                 claim_similarities = cosine_similarity(statement_embeddings,
                                                        sentence_embeddings, dim=2).tolist()[0]
             return [{'title': page,

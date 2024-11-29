@@ -3,10 +3,10 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 import torch
-from transformers import (AutoModelForSequenceClassification, AutoTokenizer,
-                          pipeline)
+from transformers import AutoTokenizer
+import onnxruntime as ort
 
-from app.core.factVerification.models.claim_verification_model import ClaimVerificationModel
+from config import PROJECT_DIR, options
 
 
 class Fact(Enum):
@@ -79,10 +79,10 @@ class ModelStatementVerifier(StatementVerifier):
     """
 
     MODEL_NAME = 'lukasellinger/claim-verification-model-top_last'
+    MODEL_ONNX = 'claim_verification_model.onnx'
 
     def __init__(self, model_name: str = '', premise_sent_order: str = 'top_last'):
         self.model_name = model_name or self.MODEL_NAME
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.model = None
         self.premise_sent_order = None
@@ -97,9 +97,7 @@ class ModelStatementVerifier(StatementVerifier):
     def load_model(self):
         """Load the machine learning model for verification, if not already loaded."""
         if self.model is None:
-            model_raw = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-            self.model = ClaimVerificationModel(model_raw).to(self.device)
-            self.model.eval()
+            self.model = ort.InferenceSession(f"{PROJECT_DIR}/onnx_models/{self.MODEL_ONNX}", options)
 
     def unload_model(self):
         """Unload the machine learning model and free up GPU resources."""
@@ -143,11 +141,13 @@ class ModelStatementVerifier(StatementVerifier):
                 factuality = Fact.NOT_SUPPORTED.to_factuality()
             else:
                 model_inputs = self.tokenizer([hypothesis] * len(facts), facts,
-                                              return_tensors='pt', padding=True).to(self.device)
-                del model_inputs['token_type_ids']
+                                              return_tensors='pt', padding=True)
                 with torch.no_grad():
-                    outputs = self.model(**model_inputs)
-                    logits = outputs['logits']
+                    onnx_inputs = {
+                        'input_ids': model_inputs['input_ids'].numpy(),
+                        'attention_mask': model_inputs['attention_mask'].numpy()
+                    }
+                    logits = torch.tensor(self.model.run(None, onnx_inputs)[0])
                     probabilities = torch.softmax(logits, dim=-1)
                     predictions = torch.argmax(probabilities, dim=-1).tolist()
 
