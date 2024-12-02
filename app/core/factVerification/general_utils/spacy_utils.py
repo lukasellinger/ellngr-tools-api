@@ -5,6 +5,8 @@ import spacy
 
 nlp = spacy.load("en_core_web_lg")
 german_nlp = spacy.load("de_core_news_lg")
+
+
 def get_doc(txt: str, lang: str = 'en'):
     """
     Returns a spacy Doc object for a given text in the specified language.
@@ -18,6 +20,18 @@ def get_doc(txt: str, lang: str = 'en'):
     if lang == 'de':
         return german_nlp(txt)
     raise ValueError(f'Language {lang} not supported.')
+
+
+def get_main_entity(txt: str, lang: str = 'en'):
+    doc = get_doc(txt, lang)
+
+    if doc.ents:
+        return doc.ents[0].text
+
+    for token in doc:
+        if token.dep_ in {"nsubj", "ROOT", "pobj", "dobj"} and token.pos_ == "NOUN":
+            return token.text
+    return None
 
 
 def split_into_sentences(txt: str, lang: str = 'en') -> list[str]:

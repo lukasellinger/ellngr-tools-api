@@ -72,6 +72,17 @@ class StatementVerifier(ABC):
         :return: list of verification results.
         """
 
+    @abstractmethod
+    def verify_splitted_claim(self,
+                              statement: dict, evids_batch: list[list[dict]]) -> dict:
+        """
+        Verify a batch of statements against a batch of evidences.
+
+        :param statement: statement to be verified.
+        :param evids_batch: list of evidences corresponding to the statements.
+        :return: verification result.
+        """
+
 
 class ModelStatementVerifier(StatementVerifier):
     """
@@ -163,6 +174,41 @@ class ModelStatementVerifier(StatementVerifier):
                 'atoms': factualities
             })
         return predictions_batch
+
+    def verify_splitted_claim(self,
+                              statement: dict, evids_batch: list[list[dict]]) -> dict:
+        if not self.model:
+            self.load_model()
+
+        hypothesis_batch = [self._order_hypothesis([sentence['text'] for sentence in entry]) for
+                            entry in evids_batch]
+        factualities = []
+        for split, hypothesis, evids in zip(statement['splits'], hypothesis_batch, evids_batch):
+            if not hypothesis:
+                factualities.append({'atom': split,
+                                     'predicted': Fact.NOT_SUPPORTED.name,
+                                     'selected_evids': evids})
+            else:
+                model_inputs = self.tokenizer(hypothesis, split, return_tensors='pt', padding=True)
+                with torch.no_grad():
+                    onnx_inputs = {
+                        'input_ids': model_inputs['input_ids'].numpy(),
+                        'attention_mask': model_inputs['attention_mask'].numpy()
+                    }
+                    logits = torch.tensor(self.model.run(None, onnx_inputs)[0])
+                    probabilities = torch.softmax(logits, dim=-1)
+                    prediction = torch.argmax(probabilities, dim=-1).tolist()[0]
+                    factualities.append({'atom': split,
+                                         'predicted': Fact.SUPPORTED.name if prediction == 0 else Fact.NOT_SUPPORTED.name,
+                                         'selected_evids': evids})
+
+        factuality = sum(pred['predicted'] == Fact.SUPPORTED.name for pred in factualities) / len(
+            factualities)
+        return {
+            'predicted': Fact.SUPPORTED.name if factuality == 1 else Fact.NOT_SUPPORTED.name,
+            'factuality': factuality,
+            'atoms': factualities
+        }
 
 
 if __name__ == "__main__":

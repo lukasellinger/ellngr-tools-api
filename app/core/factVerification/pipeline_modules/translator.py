@@ -33,6 +33,15 @@ class Translator(ABC):
         """
 
     @abstractmethod
+    def translate_claim_batch(self, batch: list[dict]) -> list[dict]:
+        """
+        Translates a batch of claims.
+
+        :param batch: A batch of dictionaries, each containing 'text'.
+        :return: The translated batch as a list of dictionaries.
+        """
+
+    @abstractmethod
     def translate_text(self, text: str) -> str:
         """
         Translates a given text.
@@ -79,9 +88,6 @@ class OpusMTTranslator(Translator):
         return self.translate_word_text_batch([{'word': word, 'text': text}])[0]
 
     def translate_word_text_batch(self, batch: list[dict]):
-        if not self.model:
-            self.load_model()
-
         batch_translations = self.translate_batch([f"{entry.get('word')}: {entry.get('text')}"
                                                    for entry in batch])
 
@@ -112,10 +118,16 @@ class OpusMTTranslator(Translator):
 
         return translated_batch
 
+    def translate_claim_batch(self, batch: list[dict]) -> list[dict]:
+        batch_translations = self.translate_batch([f"{entry.get('text')}" for entry in batch], num_translations=1)
+        return [{'text': translation[0]} for translation in batch_translations]
+
     def translate_text(self, text: str) -> str:
         return self.translate_batch([text], num_translations=1)[0][0]
 
     def translate_batch(self, batch: list[str], num_translations: int = 5) -> list[list[str]]:
+        if not self.model:
+            self.load_model()
         return self.get_top_n_translations(batch, num_translations=num_translations)
 
     def get_top_n_translations(self, batch: list[str], num_translations: int = 5,

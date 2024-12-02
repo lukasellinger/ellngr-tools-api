@@ -1,16 +1,28 @@
 FROM python:3.11-slim
 
 # Update and install necessary packages
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y bash build-essential git
+RUN apt-get update -y && \
+    apt-get upgrade -y && \
+    apt-get install -y bash build-essential git openjdk-17-jdk maven
 
 # Create a non-root user and switch to that user
 RUN useradd -m run
 USER run
 
-# Set the working directory
-WORKDIR /home/run
+WORKDIR /home/run/api
 
 ENV PATH="/home/run/.local/bin:${PATH}"
+
+# Clone and build DiscourseSimplification in a separate folder
+RUN mkdir -p /home/run/DiscourseSimplification && \
+    cd /home/run && \
+    git clone https://github.com/Lambda-3/DiscourseSimplification.git && \
+    cd DiscourseSimplification && \
+    git checkout 5e7ac12 && \
+    mvn clean install -DskipTests
+
+# Return to the API working directory
+WORKDIR /home/run/api
 
 # Copy the requirements and install them
 COPY requirements.txt .

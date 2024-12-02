@@ -3,6 +3,7 @@ from app.api.endpoints import example
 from app.api.endpoints import json
 from app.api.endpoints import text
 from app.api.endpoints import definition_verification
+from app.api.endpoints import statement_verification
 
 # Create a router to group all endpoints
 api_router = APIRouter()
@@ -12,3 +13,4 @@ api_router.include_router(example.router, prefix="/example", tags=["Example"])
 api_router.include_router(json.router, prefix="/json", tags=["JSON"])
 api_router.include_router(text.router, prefix="/text", tags=["Text"])
 api_router.include_router(definition_verification.router, prefix="/verification", tags=["Verification"])
+api_router.include_router(statement_verification.router, prefix="/verification", tags=["Verification"])

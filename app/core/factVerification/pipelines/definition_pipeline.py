@@ -100,40 +100,8 @@ class Pipeline:
         entry = {'word': word, 'text': claim}
         return self.verify_batch([entry], only_intro=only_intro)[0]
 
-    @staticmethod
-    def filter_batch_for_wikipedia(batch: list[dict],
-                                   evids_batch: list[list[dict]],
-                                   outputs) -> Tuple[list[dict], list[list[dict]], list[dict]]:
-        filtered_batch, filtered_evids = [], []
-        for evid in evids_batch:
-            evid[:] = [d for d in evid if d.get('title', '').endswith('(wikipedia)')]
 
-        for entry, evid in zip(batch, evids_batch):
-            if len(evid) > 0:
-                filtered_batch.append(entry)
-                filtered_evids.append(evid)
-            else:
-                outputs.append(
-                    {'id': entry.get('id'),
-                     'word': entry.get('word'),
-                     'claim': entry.get('claim'),
-                     'connected_claim': entry.get('connected_claim'),
-                     'label': entry.get('label'),
-                     'predicted': -1,
-                     'in_wiki': 'No'
-                     })
-
-        return filtered_batch, filtered_evids, outputs
-
-    def _prep_evidence_output(self, evidence: list[dict]) -> list[dict]:
-        max_intro_sent_indices = self.evid_fetcher.get_max_intro_sent_idx()
-        for entry in evidence:
-            entry['in_intro'] = entry.get('line_idx') <= max_intro_sent_indices.get(
-                entry.get('title'), -1)
-        return evidence
-
-
-class ProgressPipeline(Pipeline):
+class DefinitionProgressPipeline(Pipeline):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.progress_callback = None
